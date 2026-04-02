@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人生ガチャ</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    margin-bottom: 0.5rem;
+  }
+  .subtitle {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+  }
+
+  #gacha-btn {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    border: 6px solid #fff;
+    background: radial-gradient(circle at 35% 35%, #ff6b6b, #ee5a24);
+    color: #fff;
+    font-size: 1.4rem;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3), inset 0 -4px 10px rgba(0,0,0,0.2);
+    transition: transform 0.15s, box-shadow 0.15s;
+    letter-spacing: 0.1em;
+  }
+  #gacha-btn:hover { transform: scale(1.05); box-shadow: 0 12px 40px rgba(0,0,0,0.4), inset 0 -4px 10px rgba(0,0,0,0.2); }
+  #gacha-btn:active { transform: scale(0.95); }
+  #gacha-btn.spinning {
+    animation: spin 0.6s ease-in-out;
+    pointer-events: none;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(0.8); }
+    100% { transform: rotate(360deg) scale(1); }
+  }
+
+  /* 結果カード */
+  #result {
+    display: none;
+    margin-top: 2rem;
+    width: 340px;
+    max-width: 90vw;
+    border-radius: 20px;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    animation: cardIn 0.5s ease-out;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(30px) scale(0.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .rarity-1 { background: linear-gradient(135deg, #dfe6e9, #b2bec3); color: #2d3436; }
+  .rarity-2 { background: linear-gradient(135deg, #55efc4, #00b894); color: #fff; }
+  .rarity-3 { background: linear-gradient(135deg, #74b9ff, #0984e3); color: #fff; }
+  .rarity-4 { background: linear-gradient(135deg, #fd79a8, #e84393); color: #fff; }
+  .rarity-5 { background: linear-gradient(135deg, #ffeaa7, #fdcb6e, #f9ca24, #f0932b); color: #2d3436;
+    box-shadow: 0 0 40px rgba(253,203,110,0.6), 0 0 80px rgba(253,203,110,0.3);
+  }
+
+  .rarity-label {
+    font-size: 1.5rem;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.3rem;
+  }
+  .rarity-name {
+    font-size: 0.85rem;
+    opacity: 0.8;
+    margin-bottom: 1.2rem;
+    font-weight: 600;
+  }
+  .result-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+    font-size: 0.95rem;
+  }
+  .rarity-1 .result-row { border-bottom-color: rgba(0,0,0,0.1); }
+  .rarity-5 .result-row { border-bottom-color: rgba(0,0,0,0.1); }
+  .result-row:last-of-type { border-bottom: none; }
+  .result-label { font-weight: 700; min-width: 4em; text-align: left; }
+  .result-value { flex: 1; text-align: left; }
+
+  .comment {
+    margin-top: 1.2rem;
+    font-size: 0.85rem;
+    opacity: 0.9;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  #retry-btn {
+    margin-top: 1.5rem;
+    background: rgba(255,255,255,0.25);
+    border: 2px solid rgba(255,255,255,0.6);
+    color: #fff;
+    padding: 0.6rem 2rem;
+    border-radius: 30px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: none;
+  }
+  #retry-btn:hover { background: rgba(255,255,255,0.4); }
+
+  /* SSR演出 */
+  .particles {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .particle {
+    position: absolute;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    animation: particleFall linear forwards;
+  }
+  @keyframes particleFall {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(100vh) scale(0); }
+  }
+
+  /* SR演出 */
+  .flash {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9;
+    animation: flashAnim 0.4s ease-out;
+  }
+  @keyframes flashAnim {
+    0% { opacity: 0.8; }
+    100% { opacity: 0; }
+  }
+
+  .counter {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.75rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>人生ガチャ</h1>
+<p class="subtitle">もし別の人生に生まれていたら...?</p>
+
+<button id="gacha-btn" onclick="pull()">ガチャを<br>引く！</button>
+
+<div id="result"></div>
+<button id="retry-btn" onclick="reset()">もう一回引く</button>
+
+<div class="counter">引いた回数: <span id="count">0</span></div>
+<div class="particles" id="particles"></div>
+
+<script>
+const RARITIES = [
+  { stars: 1, name: 'N（ノーマル）', weight: 40 },
+  { stars: 2, name: 'R（レア）', weight: 30 },
+  { stars: 3, name: 'SR（スーパーレア）', weight: 18 },
+  { stars: 4, name: 'SSR（超レア）', weight: 9 },
+  { stars: 5, name: 'UR（ウルトラレア）', weight: 3 },
+];
+
+const JOBS = {
+  1: ['コンビニ店員', '駐車場の警備員', '謎のYouTuber(登録者3人)', 'ポスティングのプロ', '万年補欠の野球選手', '自称小説家', '地方のラジオDJ'],
+  2: ['たこ焼き屋', '占い師', '図書館司書', '探偵助手', '動物園の飼育員', 'ドローン操縦士', 'プラネタリウム解説員'],
+  3: ['哲学者', '深海探検家', '宇宙飛行士候補生', 'スパイ（見習い）', '忍者の末裔', '闇のパティシエ', 'eスポーツ選手'],
+  4: ['宇宙飛行士', '龍使い', '異世界の勇者', '時間旅行ガイド', 'AI研究者（意識あり）', '伝説の鍛冶師', '魔法省職員'],
+  5: ['全知全能の神（新人）', '宇宙創造エンジニア', '並行世界の管理人', '概念そのもの', '存在しない職業の第一人者', '物語の作者'],
+};
+
+const ORIGINS = {
+  1: ['埼玉県の端っこ', '群馬のどこか', '商店街の2階', 'ギリギリ東京（町田）', '実家（布団の中）', 'コインランドリーの隣'],
+  2: ['南極の基地', '砂漠のオアシス', '江戸時代', '海底都市（建設中）', '空中庭園', 'サバンナの真ん中'],
+  3: ['火星コロニー', '深海1万メートル', '平安時代の京都', 'アトランティス', '雲の上の王国', 'タイムマシンの中'],
+  4: ['天空の城', '異次元のカフェ', '竜の背中', 'ブラックホールの縁', '月の裏側', '夢の中の夢'],
+  5: ['ビッグバンの瞬間', '物語の外側', '概念空間', '全ての可能性が重なる場所', '存在と無の狭間', '次の宇宙'],
+};
+
+const COMMENTS = {
+  1: [
+    'まぁ...こんな日もあるよね。',
+    '平凡こそが最大のレア。たぶん。',
+    'リセマラしていいですか？',
+    'ガチャ運が試されている。',
+    '次はきっと...きっと...',
+    '課金すれば変わるかも（人生に課金とは）',
+  ],
+  2: [
+    'ちょっと面白い人生じゃない？',
+    '意外と楽しそうだけど給料が心配。',
+    '履歴書に書いたら二度見されるやつ。',
+    'これはこれでアリかもしれない。',
+    '友達に自慢できるレベル。',
+  ],
+  3: [
+    'おっ、なかなかの引きですね！',
+    'この人生、映画化決定。',
+    'ラノベの主人公ポジション獲得。',
+    '前世で何かいいことしたんですね。',
+    'Twitter(X)でバズる人生。',
+  ],
+  4: [
+    'これは...選ばれし者の人生！',
+    '全人類の0.01%しか引けない当たり。',
+    '異世界転生かな？',
+    'この人生にはBGMがついてます。',
+    '伝説はここから始まった——',
+  ],
+  5: [
+    'は？？？神引きすぎでは？？？',
+    '人生の確変突入おめでとうございます。',
+    'もはや人生ではなく神話。',
+    '存在が概念レベル。哲学者も困惑。',
+    'これを引いた時点であなたの勝ちです。',
+  ],
+};
+
+let count = 0;
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function getRarity() {
+  const total = RARITIES.reduce((s, r) => s + r.weight, 0);
+  let rand = Math.random() * total;
+  for (const r of RARITIES) {
+    rand -= r.weight;
+    if (rand <= 0) return r;
+  }
+  return RARITIES[0];
+}
+
+function pull() {
+  const btn = document.getElementById('gacha-btn');
+  btn.classList.add('spinning');
+
+  setTimeout(() => {
+    btn.classList.remove('spinning');
+    const rarity = getRarity();
+    const stars = rarity.stars;
+
+    const job = pick(JOBS[stars]);
+    const origin = pick(ORIGINS[stars]);
+    const comment = pick(COMMENTS[stars]);
+
+    // 演出
+    if (stars >= 4) spawnParticles(stars === 5 ? 80 : 40);
+    if (stars >= 3) flashScreen();
+
+    const result = document.getElementById('result');
+    result.className = `rarity-${stars}`;
+    result.style.display = 'block';
+    result.innerHTML = `
+      <div class="rarity-label">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</div>
+      <div class="rarity-name">${rarity.name}</div>
+      <div class="result-row"><span class="result-label">職業</span><span class="result-value">${job}</span></div>
+      <div class="result-row"><span class="result-label">出身地</span><span class="result-value">${origin}</span></div>
+      <div class="comment">「${comment}」</div>
+    `;
+
+    // 再アニメーション
+    result.style.animation = 'none';
+    result.offsetHeight;
+    result.style.animation = '';
+
+    document.getElementById('retry-btn').style.display = 'inline-block';
+    count++;
+    document.getElementById('count').textContent = count;
+  }, 700);
+}
+
+function reset() {
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('retry-btn').style.display = 'none';
+}
+
+function flashScreen() {
+  const el = document.createElement('div');
+  el.className = 'flash';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 500);
+}
+
+function spawnParticles(n) {
+  const container = document.getElementById('particles');
+  const colors = ['#ffeaa7', '#fdcb6e', '#ff6b6b', '#fd79a8', '#74b9ff', '#55efc4', '#fff'];
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.top = -10 + 'px';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    p.style.animationDelay = Math.random() * 0.5 + 's';
+    p.style.width = p.style.height = (4 + Math.random() * 8) + 'px';
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 4000);
+  }
+}
+</script>
+</body>
+</html>
